@@ -11,7 +11,7 @@ test/*.csv
 setup.py
 .vscode/*
 *.hdf
-
+desktop.ini
 
 
 # Byte-compiled / optimized / DLL files
@@ -151,3 +151,4 @@ dmypy.json
 
 # VSCode project settings
 .vscode/
+.github/workflows/scripts/desktop.ini
