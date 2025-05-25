@@ -12,6 +12,7 @@ setup.py
 .vscode/*
 *.hdf
 desktop.ini
+.kilocode/
 
 
 # Byte-compiled / optimized / DLL files
