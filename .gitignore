@@ -12,8 +12,9 @@ setup.py
 .vscode/*
 *.hdf
 desktop.ini
-.kilocode/
 
+# Local Extesions
+.kilocode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
