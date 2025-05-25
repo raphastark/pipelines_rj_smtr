@@ -13,7 +13,7 @@ setup.py
 *.hdf
 desktop.ini
 
-# Local Extesions
+# Local Extensions
 .kilocode/
 
 # Byte-compiled / optimized / DLL files
