@@ -1,0 +1,859 @@
+[33mcommit c5e84237183028c2786c89bebf5e0b00bba935ac[m
+Author: Victor Miguel Rocha <victor.m.rocha.vr@gmail.com>
+Date:   Tue May 13 12:34:50 2025 -0300
+
+    Alterações de regras de apuração (#572)
+    
+    * alterações para apuração de abr q1 e q1
+    
+    * atualiza changelog
+    
+    * correções
+    
+    * alteração de ordenação
+    
+    * cria constante SUBSIDIO_SPPO_POS_CHECKS_DATASET_ID
+    
+    * corrige constante
+    
+    * corrige testes de tencologia e modelos esabilitados no snapshot
+    
+    * [pre-commit.ci] auto fixes from pre-commit.com hooks
+    
+    for more information, see https://pre-commit.ci
+    
+    * formatação
+    
+    ---------
+    
+    Co-authored-by: mergify[bot] <37929162+mergify[bot]@users.noreply.github.com>
+    Co-authored-by: pre-commit-ci[bot] <66853113+pre-commit-ci[bot]@users.noreply.github.com>
+
+[1mdiff --git a/queries/models/dashboard_subsidio_sppo/viagens_remuneradas.sql b/queries/models/dashboard_subsidio_sppo/viagens_remuneradas.sql[m
+[1mindex 852e554a..7084ac82 100644[m
+[1m--- a/queries/models/dashboard_subsidio_sppo/viagens_remuneradas.sql[m
+[1m+++ b/queries/models/dashboard_subsidio_sppo/viagens_remuneradas.sql[m
+[36m@@ -1,385 +1,438 @@[m
+[31m-{{[m
+[31m-    config([m
+[31m-        materialized="incremental",[m
+[31m-        partition_by={"field": "data", "data_type": "date", "granularity": "day"},[m
+[31m-        unique_key=["data", "id_viagem"],[m
+[31m-        incremental_strategy="insert_overwrite",[m
+[31m-    )[m
+[31m-}}[m
+[31m-[m
+[31m-{%- if execute %}[m
+[31m-    {% set query = ([m
+[31m-        "SELECT DISTINCT COALESCE(feed_start_date, data_versao_trips, data_versao_shapes, data_versao_frequencies) FROM "[m
+[31m-        ~ ref("subsidio_data_versao_efetiva")[m
+[31m-        ~ " WHERE data BETWEEN DATE('"[m
+[31m-        ~ var("start_date")[m
+[31m-        ~ "') AND DATE('"[m
+[31m-        ~ var("end_date")[m
+[31m-        ~ "')"[m
+[31m-    ) %}[m
+[31m-    {{- log(query, info=True) -}}[m
+[31m-    {% set feed_start_dates = run_query(query).columns[0].values() %}[m
+[31m-    {{- log(feed_start_dates, info=True) -}}[m
+[31m-{% endif -%}[m
+[31m-[m
+[31m-with[m
+[31m-    -- Viagens planejadas (agrupadas por data e serviço)[m
+[31m-    planejado as ([m
+[31m-        select distinct[m
+[31m-            data,[m
+[31m-            tipo_dia,[m
+[31m-            consorcio,[m
+[31m-            servico,[m
+[31m-            faixa_horaria_inicio,[m
+[31m-            faixa_horaria_fim,[m
+[31m-            partidas_total_planejada,[m
+[31m-            distancia_total_planejada as km_planejada,[m
+[31m-            if(sentido = "C", true, false) as indicador_circular[m
+[31m-        from {{ ref("viagem_planejada") }}[m
+[31m-        -- from `rj-smtr.projeto_subsidio_sppo.viagem_planejada`[m
+[31m-        where[m
+[31m-            data[m
+[31m-            between date('{{ var("start_date") }}') and date('{{ var("end_date") }}')[m
+[31m-            and (distancia_total_planejada > 0 or distancia_total_planejada is null)[m
+[31m-            and (id_tipo_trajeto = 0 or id_tipo_trajeto is null)[m
+[31m-            and data >= date('{{ var("DATA_SUBSIDIO_V3A_INICIO") }}')[m
+[31m-    ),[m
+[31m-    viagens_planejadas as ([m
+[31m-        select[m
+[31m-            feed_start_date,[m
+[31m-            servico,[m
+[31m-            tipo_dia,[m
+[31m-            viagens_planejadas,[m
+[31m-            partidas_ida,[m
+[31m-            partidas_volta,[m
+[31m-            tipo_os,[m
+[31m-        from {{ ref("aux_ordem_servico_diaria") }}[m
+[31m-        where feed_start_date in ('{{ feed_start_dates|join("', '") }}')[m
+[31m-    ),[m
+[31m-    data_versao_efetiva as ([m
+[31m-        select[m
+[31m-            data,[m
+[31m-            tipo_dia,[m
+[31m-            tipo_os,[m
+[31m-            coalesce([m
+[31m-                feed_start_date,[m
+[31m-                data_versao_trips,[m
+[31m-                data_versao_shapes,[m
+[31m-                data_versao_frequencies[m
+[31m-            ) as feed_start_date[m
+[31m-        from {{ ref("subsidio_data_versao_efetiva") }}[m
+[31m-        -- from `rj-smtr.projeto_subsidio_sppo.subsidio_data_versao_efetiva`[m
+[31m-        -- (alterar também query no bloco execute)[m
+[31m-        where[m
+[31m-            data[m
+[31m-            between date('{{ var("start_date") }}') and date('{{ var("end_date") }}')[m
+[31m-            and data >= date('{{ var("DATA_SUBSIDIO_V3A_INICIO") }}')[m
+[31m-    ),[m
+[31m-    viagem_planejada as ([m
+[31m-        select[m
+[31m-            p.data,[m
+[31m-            p.tipo_dia,[m
+[31m-            p.consorcio,[m
+[31m-            p.servico,[m
+[31m-            p.faixa_horaria_inicio,[m
+[31m-            p.faixa_horaria_fim,[m
+[31m-            v.viagens_planejadas,[m
+[31m-            p.km_planejada,[m
+[31m-            if([m
+[31m-                p.data >= date('{{ var("DATA_SUBSIDIO_V9_INICIO") }}'),[m
+[31m-                p.partidas_total_planejada,[m
+[31m-                v.partidas_ida + v.partidas_volta[m
+[31m-            ) as viagens_planejadas_ida_volta,[m
+[31m-            p.indicador_circular[m
+[31m-        from planejado as p[m
+[31m-        left join data_versao_efetiva as d using (data, tipo_dia)[m
+[31m-        left join[m
+[31m-            viagens_planejadas as v[m
+[31m-            on d.feed_start_date = v.feed_start_date[m
+[31m-            and p.tipo_dia = v.tipo_dia[m
+[31m-            and p.servico = v.servico[m
+[31m-            and (d.tipo_os = v.tipo_os or (d.tipo_os is null and v.tipo_os = "Regular"))[m
+[31m-    ),[m
+[31m-    -- Parâmetros de subsídio[m
+[31m-    subsidio_parametros as ([m
+[31m-        select distinct[m
+[31m-            data_inicio,[m
+[31m-            data_fim,[m
+[31m-            status,[m
+[31m-            tecnologia,[m
+[31m-            subsidio_km,[m
+[31m-            case[m
+[31m-                when tecnologia is null[m
+[31m-                then[m
+[31m-                    max(subsidio_km) over ([m
+[31m-                        partition by date_trunc(data_inicio, year), data_fim[m
+[31m-                    )[m
+[31m-                when tecnologia is not null[m
+[31m-                then[m
+[31m-                    max(subsidio_km) over ([m
+[31m-                        partition by date_trunc(data_inicio, year), data_fim, tecnologia[m
+[31m-                    )[m
+[31m-            end as subsidio_km_teto,[m
+[31m-            indicador_penalidade_judicial[m
+[31m-        from {{ ref("valor_km_tipo_viagem") }}[m
+[31m-    -- from `rj-smtr.subsidio.valor_km_tipo_viagem`[m
+[31m-    ),[m
+[31m-    tecnologias as ([m
+[31m-        select[m
+[31m-            inicio_vigencia,[m
+[31m-            fim_vigencia,[m
+[31m-            servico,[m
+[31m-            codigo_tecnologia,[m
+[31m-            maior_tecnologia_permitida,[m
+[31m-            menor_tecnologia_permitida[m
+[31m-        from {{ ref("tecnologia_servico") }}[m
+[31m-    ),[m
+[31m-    prioridade_tecnologia as (select * from {{ ref("tecnologia_prioridade") }}),[m
+[31m-    -- Viagens com quantidades de transações[m
+[31m-    viagem_transacao as ([m
+[31m-        select *[m
+[31m-        from {{ ref("viagem_transacao") }}[m
+[31m-        -- from `rj-smtr.subsidio.viagem_transacao`[m
+[31m-        where[m
+[31m-            data[m
+[31m-            between date('{{ var("start_date") }}') and date('{{ var("end_date") }}')[m
+[31m-            and data >= date('{{ var("DATA_SUBSIDIO_V3A_INICIO") }}')[m
+[31m-    ),[m
+[31m-    -- Viagens com tipo e valor de subsídio por km[m
+[31m-    viagem_tecnologia as ([m
+[31m-        select distinct[m
+[31m-            vt.data,[m
+[31m-            vt.servico,[m
+[31m-            vt.tipo_viagem,[m
+[31m-            vt.tecnologia as tecnologia_apurada,[m
+[31m-            case[m
+[31m-                when p.prioridade > p_maior.prioridade[m
+[31m-                then t.maior_tecnologia_permitida[m
+[31m-                when[m
+[31m-                    p.prioridade < p_menor.prioridade[m
+[31m-                    and data >= date('{{ var("DATA_SUBSIDIO_V14A_INICIO") }}')[m
+[31m-                then null[m
+[31m-                else vt.tecnologia[m
+[31m-            end as tecnologia_remunerada,[m
+[31m-            vt.id_viagem,[m
+[31m-            vt.datetime_partida,[m
+[31m-            vt.distancia_planejada,[m
+[31m-            case[m
+[31m-                when p.prioridade < p_menor.prioridade then true else false[m
+[31m-            end as indicador_penalidade_tecnologia[m
+[31m-        from viagem_transacao as vt[m
+[31m-        left join[m
+[31m-            tecnologias as t[m
+[31m-            on vt.servico = t.servico[m
+[31m-            and ([m
+[31m-                (vt.data between t.inicio_vigencia and t.fim_vigencia)[m
+[31m-                or (vt.data >= t.inicio_vigencia and t.fim_vigencia is null)[m
+[31m-            )[m
+[31m-        left join prioridade_tecnologia as p on vt.tecnologia = p.tecnologia[m
+[31m-        left join[m
+[31m-            prioridade_tecnologia as p_maior[m
+[31m-            on t.maior_tecnologia_permitida = p_maior.tecnologia[m
+[31m-        left join[m
+[31m-            prioridade_tecnologia as p_menor[m
+[31m-            on t.menor_tecnologia_permitida = p_menor.tecnologia[m
+[31m-    ),[m
+[31m-    -- Apuração de km realizado e Percentual de Operação por Faixa Horária (POF)[m
+[31m-    servico_faixa_km_apuracao as ([m
+[31m-        select[m
+[31m-            p.data,[m
+[31m-            p.tipo_dia,[m
+[31m-            p.faixa_horaria_inicio,[m
+[31m-            p.faixa_horaria_fim,[m
+[31m-            p.consorcio,[m
+[31m-            p.servico,[m
+[31m-            p.km_planejada as km_planejada,[m
+[31m-            coalesce([m
+[31m-                round([m
+[31m-                    100 * sum([m
+[31m-                        if([m
+[31m-                            v.tipo_viagem not in ("Não licenciado", "Não vistoriado"),[m
+[31m-                            v.distancia_planejada,[m
+[31m-                            0[m
+[31m-                        )[m
+[31m-                    )[m
+[31m-                    / p.km_planejada,[m
+[31m-                    2[m
+[31m-                ),[m
+[31m-                0[m
+[31m-            ) as pof[m
+[31m-        from viagem_planejada as p[m
+[31m-        left join[m
+[31m-            viagem_tecnologia as v[m
+[31m-            on p.data = v.data[m
+[31m-            and p.servico = v.servico[m
+[31m-            and v.datetime_partida[m
+[31m-            between p.faixa_horaria_inicio and p.faixa_horaria_fim[m
+[31m-        group by 1, 2, 3, 4, 5, 6, 7[m
+[31m-    ),[m
+[31m-    viagem_km_tipo as ([m
+[31m-        select distinct[m
+[31m-            vt.data,[m
+[31m-            vt.servico,[m
+[31m-            vt.tipo_viagem,[m
+[31m-            vt.tecnologia_apurada,[m
+[31m-            vt.tecnologia_remunerada,[m
+[31m-            vt.id_viagem,[m
+[31m-            vt.datetime_partida,[m
+[31m-            vt.distancia_planejada,[m
+[31m-            sp.subsidio_km,[m
+[31m-            sp.subsidio_km_teto,[m
+[31m-            case[m
+[31m-                when[m
+[31m-                    vt.data >= date('{{ var("DATA_SUBSIDIO_V14_INICIO") }}')[m
+[31m-                    and s.pof >= 80[m
+[31m-                    and vt.tipo_viagem in ([m
+[31m-                        "Licenciado com ar e não autuado",[m
+[31m-                        "Licenciado sem ar e não autuado"[m
+[31m-                    )[m
+[31m-                then[m
+[31m-                    safe_cast([m
+[31m-                        - ([m
+[31m-                            ta.subsidio_km * vt.distancia_planejada[m
+[31m-                            - sp.subsidio_km * vt.distancia_planejada[m
+[31m-                        ) as numeric[m
+[31m-                    )[m
+[31m-                else safe_cast(0 as numeric)[m
+[31m-            end as valor_glosado_tecnologia,[m
+[31m-            vt.indicador_penalidade_tecnologia,[m
+[31m-            sp.indicador_penalidade_judicial[m
+[31m-        from viagem_tecnologia as vt[m
+[31m-        left join[m
+[31m-            subsidio_parametros as sp[m
+[31m-            on vt.data between sp.data_inicio and sp.data_fim[m
+[31m-            and vt.tipo_viagem = sp.status[m
+[31m-            and ([m
+[31m-                ([m
+[31m-                    vt.data >= date('{{ var("DATA_SUBSIDIO_V14_INICIO") }}')[m
+[31m-                    and ([m
+[31m-                        vt.tecnologia_remunerada = sp.tecnologia[m
+[31m-                        or (vt.tecnologia_remunerada is null and sp.tecnologia is null)[m
+[31m-                    )[m
+[31m-                )[m
+[31m-                or ([m
+[31m-                    vt.data < date('{{ var("DATA_SUBSIDIO_V14_INICIO") }}')[m
+[31m-                    and sp.tecnologia is null[m
+[31m-                )[m
+[31m-            )[m
+[31m-        left join[m
+[31m-            subsidio_parametros as ta[m
+[31m-            on vt.data between ta.data_inicio and ta.data_fim[m
+[31m-            and vt.tipo_viagem = ta.status[m
+[31m-            and ([m
+[31m-                vt.data >= date('{{ var("DATA_SUBSIDIO_V14_INICIO") }}')[m
+[31m-                and ([m
+[31m-                    vt.tecnologia_apurada = ta.tecnologia[m
+[31m-                    or (vt.tecnologia_apurada is null and ta.tecnologia is null)[m
+[31m-                )[m
+[31m-            )[m
+[31m-        left join[m
+[31m-            servico_faixa_km_apuracao as s[m
+[31m-            on s.data = vt.data[m
+[31m-            and s.servico = vt.servico[m
+[31m-            and vt.datetime_partida[m
+[31m-            between s.faixa_horaria_inicio and s.faixa_horaria_fim[m
+[31m-[m
+[31m-    )[m
+[31m--- Flag de viagens que serão consideradas ou não para fins de remuneração (apuração de[m
+[31m--- valor de subsídio) - RESOLUÇÃO SMTR Nº 3645/2023[m
+[31m-select[m
+[31m-    v.* except ([m
+[31m-        rn,[m
+[31m-        datetime_partida,[m
+[31m-        viagens_planejadas,[m
+[31m-        viagens_planejadas_ida_volta,[m
+[31m-        km_planejada,[m
+[31m-        tipo_dia,[m
+[31m-        consorcio,[m
+[31m-        faixa_horaria_inicio,[m
+[31m-        faixa_horaria_fim,[m
+[31m-        indicador_circular[m
+[31m-    ),[m
+[31m-    case[m
+[31m-        when[m
+[31m-            v.data >= date('{{ var("DATA_SUBSIDIO_V10_INICIO") }}')[m
+[31m-            and v.tipo_dia = "Dia Útil"[m
+[31m-            and viagens_planejadas < 10[m
+[31m-            and viagens_planejadas > 5[m
+[31m-            and pof > 100[m
+[31m-            and rn > (viagens_planejadas_ida_volta + if(indicador_circular, 1, 2))[m
+[31m-        then false[m
+[31m-        when[m
+[31m-            v.data >= date('{{ var("DATA_SUBSIDIO_V10_INICIO") }}')[m
+[31m-            and v.tipo_dia = "Dia Útil"[m
+[31m-            and viagens_planejadas >= 10[m
+[31m-            and pof > 110[m
+[31m-            and rn > viagens_planejadas_ida_volta * 1.1[m
+[31m-        then false[m
+[31m-        when[m
+[31m-            v.data >= date('{{ var("DATA_SUBSIDIO_V10_INICIO") }}')[m
+[31m-            and v.tipo_dia = "Dia Útil"[m
+[31m-            and viagens_planejadas <= 5[m
+[31m-            and pof > 200[m
+[31m-            and rn > viagens_planejadas_ida_volta * 2[m
+[31m-        then false[m
+[31m-        when[m
+[31m-            v.data >= date('{{ var("DATA_SUBSIDIO_V10_INICIO") }}')[m
+[31m-            and v.tipo_dia != "Dia Útil"[m
+[31m-            and viagens_planejadas < 5[m
+[31m-            and pof > 100[m
+[31m-            and rn > (viagens_planejadas_ida_volta + if(indicador_circular, 1, 2))[m
+[31m-        then false[m
+[31m-        when[m
+[31m-            v.data >= date('{{ var("DATA_SUBSIDIO_V10_INICIO") }}')[m
+[31m-            and v.tipo_dia != "Dia Útil"[m
+[31m-            and viagens_planejadas >= 5[m
+[31m-            and pof > 120[m
+[31m-            and rn > viagens_planejadas_ida_volta * 1.2[m
+[31m-        then false[m
+[31m-        when[m
+[31m-            v.data >= date('{{ var("DATA_SUBSIDIO_V3A_INICIO") }}')[m
+[31m-            and v.tipo_dia = "Dia Útil"[m
+[31m-            and viagens_planejadas > 10[m
+[31m-            and pof > 120[m
+[31m-            and rn > viagens_planejadas_ida_volta * 1.2[m
+[31m-        then false[m
+[31m-        when[m
+[31m-            v.data >= date('{{ var("DATA_SUBSIDIO_V3A_INICIO") }}')[m
+[31m-            and v.tipo_dia = "Dia Útil"[m
+[31m-            and viagens_planejadas <= 10[m
+[31m-            and pof > 200[m
+[31m-            and rn > viagens_planejadas_ida_volta * 2[m
+[31m-        then false[m
+[31m-        when[m
+[31m-            v.data >= date('{{ var("DATA_SUBSIDIO_V3A_INICIO") }}')[m
+[31m-            and ([m
+[31m-                v.tipo_dia = "Dia Útil"[m
+[31m-                and (viagens_planejadas is null or pof is null or rn is null)[m
+[31m-            )[m
+[31m-        then null[m
+[31m-        else true[m
+[31m-    end as indicador_viagem_dentro_limite,[m
+[31m-    '{{ var("version") }}' as versao,[m
+[31m-    current_datetime("America/Sao_Paulo") as datetime_ultima_atualizacao[m
+[31m-from[m
+[31m-    ([m
+[31m-        select[m
+[31m-            v.*,[m
+[31m-            p.* except (data, servico),[m
+[31m-            row_number() over ([m
+[31m-                partition by v.data, v.servico, faixa_horaria_inicio, faixa_horaria_fim[m
+[31m-                order by subsidio_km * distancia_planejada desc, datetime_partida asc[m
+[31m-            ) as rn[m
+[31m-        from viagem_km_tipo as v[m
+[31m-        left join[m
+[31m-            viagem_planejada as p[m
+[31m-            on p.data = v.data[m
+[31m-            and p.servico = v.servico[m
+[31m-            and v.datetime_partida[m
+[31m-            between p.faixa_horaria_inicio and p.faixa_horaria_fim[m
+[31m-    ) as v[m
+[31m-left join[m
+[31m-    servico_faixa_km_apuracao as s[m
+[31m-    on s.data = v.data[m
+[31m-    and s.servico = v.servico[m
+[31m-    and v.datetime_partida between s.faixa_horaria_inicio and s.faixa_horaria_fim[m
+[32m+[m[32m{{[m
+[32m+[m[32m    config([m
+[32m+[m[32m        materialized="incremental",[m
+[32m+[m[32m        partition_by={"field": "data", "data_type": "date", "granularity": "day"},[m
+[32m+[m[32m        unique_key=["data", "id_viagem"],[m
+[32m+[m[32m        incremental_strategy="insert_overwrite",[m
+[32m+[m[32m    )[m
+[32m+[m[32m}}[m
+[32m+[m
+[32m+[m[32m{%- if execute %}[m
+[32m+[m[32m    {% set query = ([m
+[32m+[m[32m        "SELECT DISTINCT COALESCE(feed_start_date, data_versao_trips, data_versao_shapes, data_versao_frequencies) FROM "[m
+[32m+[m[32m        ~ ref("subsidio_data_versao_efetiva")[m
+[32m+[m[32m        ~ " WHERE data BETWEEN DATE('"[m
+[32m+[m[32m        ~ var("start_date")[m
+[32m+[m[32m        ~ "') AND DATE('"[m
+[32m+[m[32m        ~ var("end_date")[m
+[32m+[m[32m        ~ "')"[m
+[32m+[m[32m    ) %}[m
+[32m+[m[32m    {{- log(query, info=True) -}}[m
+[32m+[m[32m    {% set feed_start_dates = run_query(query).columns[0].values() %}[m
+[32m+[m[32m    {{- log(feed_start_dates, info=True) -}}[m
+[32m+[m[32m{% endif -%}[m
+[32m+[m
+[32m+[m[32mwith[m
+[32m+[m[32m    -- Viagens planejadas (agrupadas por data e serviço)[m
+[32m+[m[32m    planejado as ([m
+[32m+[m[32m        select distinct[m
+[32m+[m[32m            data,[m
+[32m+[m[32m            tipo_dia,[m
+[32m+[m[32m            consorcio,[m
+[32m+[m[32m            servico,[m
+[32m+[m[32m            faixa_horaria_inicio,[m
+[32m+[m[32m            faixa_horaria_fim,[m
+[32m+[m[32m            partidas_total_planejada,[m
+[32m+[m[32m            distancia_total_planejada as km_planejada,[m
+[32m+[m[32m            if(sentido = "C", true, false) as indicador_circular[m
+[32m+[m[32m        from {{ ref("viagem_planejada") }}[m
+[32m+[m[32m        -- from `rj-smtr.projeto_subsidio_sppo.viagem_planejada`[m
+[32m+[m[32m        where[m
+[32m+[m[32m            data[m
+[32m+[m[32m            between date('{{ var("start_date") }}') and date('{{ var("end_date") }}')[m
+[32m+[m[32m            and (distancia_total_planejada > 0 or distancia_total_planejada is null)[m
+[32m+[m[32m            and (id_tipo_trajeto = 0 or id_tipo_trajeto is null)[m
+[32m+[m[32m            and data >= date('{{ var("DATA_SUBSIDIO_V3A_INICIO") }}')[m
+[32m+[m[32m    ),[m
+[32m+[m[32m    viagens_planejadas as ([m
+[32m+[m[32m        select[m
+[32m+[m[32m            feed_start_date,[m
+[32m+[m[32m            servico,[m
+[32m+[m[32m            tipo_dia,[m
+[32m+[m[32m            viagens_planejadas,[m
+[32m+[m[32m            partidas_ida,[m
+[32m+[m[32m            partidas_volta,[m
+[32m+[m[32m            tipo_os,[m
+[32m+[m[32m        from {{ ref("aux_ordem_servico_diaria") }}[m
+[32m+[m[32m        where feed_start_date in ('{{ feed_start_dates|join("', '") }}')[m
+[32m+[m[32m    ),[m
+[32m+[m[32m    data_versao_efetiva as ([m
+[32m+[m[32m        select[m
+[32m+[m[32m            data,[m
+[32m+[m[32m            tipo_dia,[m
+[32m+[m[32m            tipo_os,[m
+[32m+[m[32m            coalesce([m
+[32m+[m[32m                feed_start_date,[m
+[32m+[m[32m                data_versao_trips,[m
+[32m+[m[32m                data_versao_shapes,[m
+[32m+[m[32m                data_versao_frequencies[m
+[32m+[m[32m            ) as feed_start_date[m
+[32m+[m[32m        from {{ ref("subsidio_data_versao_efetiva") }}[m
+[32m+[m[32m        -- from `rj-smtr.projeto_subsidio_sppo.subsidio_data_versao_efetiva`[m
+[32m+[m[32m        -- (alterar também query no bloco execute)[m
+[32m+[m[32m        where[m
+[32m+[m[32m            data[m
+[32m+[m[32m            between date('{{ var("start_date") }}') and date('{{ var("end_date") }}')[m
+[32m+[m[32m            and data >= date('{{ var("DATA_SUBSIDIO_V3A_INICIO") }}')[m
+[32m+[m[32m    ),[m
+[32m+[m[32m    viagem_planejada as ([m
+[32m+[m[32m        select[m
+[32m+[m[32m            p.data,[m
+[32m+[m[32m            p.tipo_dia,[m
+[32m+[m[32m            p.consorcio,[m
+[32m+[m[32m            p.servico,[m
+[32m+[m[32m            p.faixa_horaria_inicio,[m
+[32m+[m[32m            p.faixa_horaria_fim,[m
+[32m+[m[32m            v.viagens_planejadas,[m
+[32m+[m[32m            p.km_planejada,[m
+[32m+[m[32m            if([m
+[32m+[m[32m                p.data >= date('{{ var("DATA_SUBSIDIO_V9_INICIO") }}'),[m
+[32m+[m[32m                p.partidas_total_planejada,[m
+[32m+[m[32m                v.partidas_ida + v.partidas_volta[m
+[32m+[m[32m            ) as viagens_planejadas_ida_volta,[m
+[32m+[m[32m            p.indicador_circular[m
+[32m+[m[32m        from planejado as p[m
+[32m+[m[32m        left join data_versao_efetiva as d using (data, tipo_dia)[m
+[32m+[m[32m        left join[m
+[32m+[m[32m            viagens_planejadas as v[m
+[32m+[m[32m            on d.feed_start_date = v.feed_start_date[m
+[32m+[m[32m            and p.tipo_dia = v.tipo_dia[m
+[32m+[m[32m            and p.servico = v.servico[m
+[32m+[m[32m            and (d.tipo_os = v.tipo_os or (d.tipo_os is null and v.tipo_os = "Regular"))[m
+[32m+[m[32m    ),[m
+[32m+[m[32m    -- Parâmetros de subsídio[m
+[32m+[m[32m    subsidio_parametros as ([m
+[32m+[m[32m        select distinct[m
+[32m+[m[32m            data_inicio,[m
+[32m+[m[32m            data_fim,[m
+[32m+[m[32m            status,[m
+[32m+[m[32m            tecnologia,[m
+[32m+[m[32m            subsidio_km,[m
+[32m+[m[32m            case[m
+[32m+[m[32m                when tecnologia is null[m
+[32m+[m[32m                then[m
+[32m+[m[32m                    max(subsidio_km) over ([m
+[32m+[m[32m                        partition by date_trunc(data_inicio, year), data_fim[m
+[32m+[m[32m                    )[m
+[32m+[m[32m                when tecnologia is not null[m
+[32m+[m[32m                then[m
+[32m+[m[32m                    max(subsidio_km) over ([m
+[32m+[m[32m                        partition by date_trunc(data_inicio, year), data_fim, tecnologia[m
+[32m+[m[32m                    )[m
+[32m+[m[32m            end as subsidio_km_teto,[m
+[32m+[m[32m            indicador_penalidade_judicial[m
+[32m+[m[32m        from {{ ref("valor_km_tipo_viagem") }}[m
+[32m+[m[32m    -- from `rj-smtr.subsidio.valor_km_tipo_viagem`[m
+[32m+[m[32m    ),[m
+[32m+[m[32m    tecnologias as ([m
+[32m+[m[32m        select[m
+[32m+[m[32m            inicio_vigencia,[m
+[32m+[m[32m            fim_vigencia,[m
+[32m+[m[32m            servico,[m
+[32m+[m[32m            codigo_tecnologia,[m
+[32m+[m[32m            maior_tecnologia_permitida,[m
+[32m+[m[32m            menor_tecnologia_permitida[m
+[32m+[m[32m        from {{ ref("tecnologia_servico") }}[m
+[32m+[m[32m    ),[m
+[32m+[m[32m    prioridade_tecnologia as (select * from {{ ref("tecnologia_prioridade") }}),[m
+[32m+[m[32m    -- Viagens com quantidades de transações[m
+[32m+[m[32m    viagem_transacao as ([m
+[32m+[m[32m        select *[m
+[32m+[m[32m        from {{ ref("viagem_transacao") }}[m
+[32m+[m[32m        -- from `rj-smtr.subsidio.viagem_transacao`[m
+[32m+[m[32m        where[m
+[32m+[m[32m            data[m
+[32m+[m[32m            between date('{{ var("start_date") }}') and date('{{ var("end_date") }}')[m
+[32m+[m[32m            and data >= date('{{ var("DATA_SUBSIDIO_V3A_INICIO") }}')[m
+[32m+[m[32m    ),[m
+[32m+[m[32m    -- Viagens com tipo e valor de subsídio por km[m
+[32m+[m[32m    viagem_tecnologia as ([m
+[32m+[m[32m        select distinct[m
+[32m+[m[32m            vt.data,[m
+[32m+[m[32m            vt.servico,[m
+[32m+[m[32m            vt.tipo_viagem,[m
+[32m+[m[32m            vt.tecnologia as tecnologia_apurada,[m
+[32m+[m[32m            case[m
+[32m+[m[32m                when p.prioridade > p_maior.prioridade[m
+[32m+[m[32m                then t.maior_tecnologia_permitida[m
+[32m+[m[32m                when[m
+[32m+[m[32m                    p.prioridade < p_menor.prioridade[m
+[32m+[m[32m                    and data >= date('{{ var("DATA_SUBSIDIO_V15A_INICIO") }}')[m
+[32m+[m[32m                then null[m
+[32m+[m[32m                else vt.tecnologia[m
+[32m+[m[32m            end as tecnologia_remunerada,[m
+[32m+[m[32m            vt.id_viagem,[m
+[32m+[m[32m            vt.datetime_partida,[m
+[32m+[m[32m            vt.distancia_planejada,[m
+[32m+[m[32m            case[m
+[32m+[m[32m                when p.prioridade < p_menor.prioridade then true else false[m
+[32m+[m[32m            end as indicador_penalidade_tecnologia[m
+[32m+[m[32m        from viagem_transacao as vt[m
+[32m+[m[32m        left join[m
+[32m+[m[32m            tecnologias as t[m
+[32m+[m[32m            on vt.servico = t.servico[m
+[32m+[m[32m            and ([m
+[32m+[m[32m                (vt.data between t.inicio_vigencia and t.fim_vigencia)[m
+[32m+[m[32m                or (vt.data >= t.inicio_vigencia and t.fim_vigencia is null)[m
+[32m+[m[32m            )[m
+[32m+[m[32m        left join prioridade_tecnologia as p on vt.tecnologia = p.tecnologia[m
+[32m+[m[32m        left join[m
+[32m+[m[32m            prioridade_tecnologia as p_maior[m
+[32m+[m[32m            on t.maior_tecnologia_permitida = p_maior.tecnologia[m
+[32m+[m[32m        left join[m
+[32m+[m[32m            prioridade_tecnologia as p_menor[m
+[32m+[m[32m            on t.menor_tecnologia_permitida = p_menor.tecnologia[m
+[32m+[m[32m    ),[m
+[32m+[m[32m    -- Apuração de km realizado e Percentual de Operação por Faixa Horária (POF)[m
+[32m+[m[32m    servico_faixa_km_apuracao as ([m
+[32m+[m[32m        select[m
+[32m+[m[32m            p.data,[m
+[32m+[m[32m            p.tipo_dia,[m
+[32m+[m[32m            p.faixa_horaria_inicio,[m
+[32m+[m[32m            p.faixa_horaria_fim,[m
+[32m+[m[32m            p.consorcio,[m
+[32m+[m[32m            p.servico,[m
+[32m+[m[32m            p.km_planejada as km_planejada,[m
+[32m+[m[32m            coalesce([m
+[32m+[m[32m                round([m
+[32m+[m[32m                    100 * sum([m
+[32m+[m[32m                        if([m
+[32m+[m[32m                            v.tipo_viagem not in ("Não licenciado", "Não vistoriado"),[m
+[32m+[m[32m                            v.distancia_planejada,[m
+[32m+[m[32m                            0[m
+[32m+[m[32m                        )[m
+[32m+[m[32m                    )[m
+[32m+[m[32m                    / p.km_planejada,[m
+[32m+[m[32m                    2[m
+[32m+[m[32m                ),[m
+[32m+[m[32m                0[m
+[32m+[m[32m            ) as pof[m
+[32m+[m[32m        from viagem_planejada as p[m
+[32m+[m[32m        left join[m
+[32m+[m[32m            viagem_tecnologia as v[m
+[32m+[m[32m            on p.data = v.data[m
+[32m+[m[32m            and p.servico = v.servico[m
+[32m+[m[32m            and v.datetime_partida[m
+[32m+[m[32m            between p.faixa_horaria_inicio and p.faixa_horaria_fim[m
+[32m+[m[32m        group by 1, 2, 3, 4, 5, 6, 7[m
+[32m+[m[32m    ),[m
+[32m+[m[32m    viagem_km_tipo as ([m
+[32m+[m[32m        select distinct[m
+[32m+[m[32m            vt.data,[m
+[32m+[m[32m            vt.servico,[m
+[32m+[m[32m            vt.tipo_viagem,[m
+[32m+[m[32m            vt.tecnologia_apurada,[m
+[32m+[m[32m            vt.tecnologia_remunerada,[m
+[32m+[m[32m            vt.id_viagem,[m
+[32m+[m[32m            vt.datetime_partida,[m
+[32m+[m[32m            vt.distancia_planejada,[m
+[32m+[m[32m            sp.subsidio_km,[m
+[32m+[m[32m            sp.subsidio_km_teto,[m
+[32m+[m[32m            case[m
+[32m+[m[32m                when[m
+[32m+[m[32m                    vt.data >= date('{{ var("DATA_SUBSIDIO_V14_INICIO") }}')[m
+[32m+[m[32m                    and s.pof >= 80[m
+[32m+[m[32m                    and vt.tipo_viagem in ([m
+[32m+[m[32m                        "Licenciado com ar e não autuado",[m
+[32m+[m[32m                        "Licenciado sem ar e não autuado"[m
+[32m+[m[32m                    )[m
+[32m+[m[32m                then[m
+[32m+[m[32m                    safe_cast([m
+[32m+[m[32m                        - ([m
+[32m+[m[32m                            ta.subsidio_km * vt.distancia_planejada[m
+[32m+[m[32m                            - sp.subsidio_km * vt.distancia_planejada[m
+[32m+[m[32m                        ) as numeric[m
+[32m+[m[32m                    )[m
+[32m+[m[32m                else safe_cast(0 as numeric)[m
+[32m+[m[32m            end as valor_glosado_tecnologia,[m
+[32m+[m[32m            vt.indicador_penalidade_tecnologia,[m
+[32m+[m[32m            sp.indicador_penalidade_judicial[m
+[32m+[m[32m        from viagem_tecnologia as vt[m
+[32m+[m[32m        left join[m
+[32m+[m[32m            subsidio_parametros as sp[m
+[32m+[m[32m            on vt.data between sp.data_inicio and sp.data_fim[m
+[32m+[m[32m            and vt.tipo_viagem = sp.status[m
+[32m+[m[32m            and ([m
+[32m+[m[32m                vt.data >= date('{{ var("DATA_SUBSIDIO_V15_INICIO") }}')[m
+[32m+[m[32m                or ([m
+[32m+[m[32m                    vt.data >= date('{{ var("DATA_SUBSIDIO_V14_INICIO") }}')[m
+[32m+[m[32m                    and ([m
+[32m+[m[32m                        vt.tecnologia_remunerada = sp.tecnologia[m
+[32m+[m[32m                        or (vt.tecnologia_remunerada is null and sp.tecnologia is null)[m
+[32m+[m[32m                    )[m
+[32m+[m[32m                )[m
+[32m+[m[32m                or ([m
+[32m+[m[32m                    vt.data < date('{{ var("DATA_SUBSIDIO_V14_INICIO") }}')[m
+[32m+[m[32m                    and sp.tecnologia is null[m
+[32m+[m[32m                )[m
+[32m+[m[32m            )[m
+[32m+[m[32m        left join[m
+[32m+[m[32m            subsidio_parametros as ta[m
+[32m+[m[32m            on vt.data between ta.data_inicio and ta.data_fim[m
+[32m+[m[32m            and vt.tipo_viagem = ta.status[m
+[32m+[m[32m            and ([m
+[32m+[m[32m                vt.data[m
+[32m+[m[32m                between date('{{ var("DATA_SUBSIDIO_V14_INICIO") }}') and date_sub([m
+[32m+[m[32m                    '{{ var("DATA_SUBSIDIO_V15_INICIO") }}', interval 1 day[m
+[32m+[m[32m                )[m
+[32m+[m[32m                and ([m
+[32m+[m[32m                    vt.tecnologia_apurada = ta.tecnologia[m
+[32m+[m[32m                    or (vt.tecnologia_apurada is null and ta.tecnologia is null)[m
+[32m+[m[32m                )[m
+[32m+[m[32m            )[m
+[32m+[m[32m        left join[m
+[32m+[m[32m            servico_faixa_km_apuracao as s[m
+[32m+[m[32m            on s.data = vt.data[m
+[32m+[m[32m            and s.servico = vt.servico[m
+[32m+[m[32m            and vt.datetime_partida[m
+[32m+[m[32m            between s.faixa_horaria_inicio and s.faixa_horaria_fim[m
+[32m+[m
+[32m+[m[32m    )[m
+[32m+[m[32m-- Flag de viagens que serão consideradas ou não para fins de remuneração (apuração de[m
+[32m+[m[32m-- valor de subsídio) - RESOLUÇÃO SMTR Nº 3645/2023[m
+[32m+[m[32mselect[m
+[32m+[m[32m    v.* except ([m
+[32m+[m[32m        rn,[m
+[32m+[m[32m        datetime_partida,[m
+[32m+[m[32m        viagens_planejadas,[m
+[32m+[m[32m        viagens_planejadas_ida_volta,[m
+[32m+[m[32m        km_planejada,[m
+[32m+[m[32m        tipo_dia,[m
+[32m+[m[32m        consorcio,[m
+[32m+[m[32m        faixa_horaria_inicio,[m
+[32m+[m[32m        faixa_horaria_fim,[m
+[32m+[m[32m        indicador_circular[m
+[32m+[m[32m    ),[m
+[32m+[m[32m    case[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V15_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia in ("Sabado", "Domingo")[m
+[32m+[m[32m            and viagens_planejadas >= 5[m
+[32m+[m[32m            and pof > 120[m
+[32m+[m[32m            and rn_pos_v15 > viagens_planejadas_ida_volta * 1.2[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V15_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia in ("Sabado", "Domingo")[m
+[32m+[m[32m            and viagens_planejadas < 5[m
+[32m+[m[32m            and pof > 120[m
+[32m+[m[32m            and rn_pos_v15[m
+[32m+[m[32m            > (viagens_planejadas_ida_volta + if(indicador_circular, 1, 2))[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V15_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia = "Ponto Facultativo"[m
+[32m+[m[32m            and viagens_planejadas >= 2[m
+[32m+[m[32m            and pof > 150[m
+[32m+[m[32m            and rn_pos_v15 > viagens_planejadas_ida_volta * 1.5[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V15_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia = "Ponto Facultativo"[m
+[32m+[m[32m            and viagens_planejadas < 2[m
+[32m+[m[32m            and pof > 150[m
+[32m+[m[32m            and rn_pos_v15[m
+[32m+[m[32m            > (viagens_planejadas_ida_volta + if(indicador_circular, 1, 2))[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V15_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia = "Dia Útil"[m
+[32m+[m[32m            and viagens_planejadas >= 10[m
+[32m+[m[32m            and pof > 110[m
+[32m+[m[32m            and rn_pos_v15 > viagens_planejadas_ida_volta * 1.1[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V15_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia = "Dia Útil"[m
+[32m+[m[32m            and viagens_planejadas < 10[m
+[32m+[m[32m            and pof > 110[m
+[32m+[m[32m            and rn_pos_v15[m
+[32m+[m[32m            > (viagens_planejadas_ida_volta + if(indicador_circular, 1, 2))[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V10_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia = "Dia Útil"[m
+[32m+[m[32m            and viagens_planejadas < 10[m
+[32m+[m[32m            and viagens_planejadas > 5[m
+[32m+[m[32m            and pof > 100[m
+[32m+[m[32m            and rn > (viagens_planejadas_ida_volta + if(indicador_circular, 1, 2))[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V10_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia = "Dia Útil"[m
+[32m+[m[32m            and viagens_planejadas >= 10[m
+[32m+[m[32m            and pof > 110[m
+[32m+[m[32m            and rn > viagens_planejadas_ida_volta * 1.1[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V10_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia = "Dia Útil"[m
+[32m+[m[32m            and viagens_planejadas <= 5[m
+[32m+[m[32m            and pof > 200[m
+[32m+[m[32m            and rn > viagens_planejadas_ida_volta * 2[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V10_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia != "Dia Útil"[m
+[32m+[m[32m            and viagens_planejadas < 5[m
+[32m+[m[32m            and pof > 100[m
+[32m+[m[32m            and rn > (viagens_planejadas_ida_volta + if(indicador_circular, 1, 2))[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V10_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia != "Dia Útil"[m
+[32m+[m[32m            and viagens_planejadas >= 5[m
+[32m+[m[32m            and pof > 120[m
+[32m+[m[32m            and rn > viagens_planejadas_ida_volta * 1.2[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V3A_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia = "Dia Útil"[m
+[32m+[m[32m            and viagens_planejadas > 10[m
+[32m+[m[32m            and pof > 120[m
+[32m+[m[32m            and rn > viagens_planejadas_ida_volta * 1.2[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V3A_INICIO") }}')[m
+[32m+[m[32m            and v.tipo_dia = "Dia Útil"[m
+[32m+[m[32m            and viagens_planejadas <= 10[m
+[32m+[m[32m            and pof > 200[m
+[32m+[m[32m            and rn > viagens_planejadas_ida_volta * 2[m
+[32m+[m[32m        then false[m
+[32m+[m[32m        when[m
+[32m+[m[32m            v.data >= date('{{ var("DATA_SUBSIDIO_V3A_INICIO") }}')[m
+[32m+[m[32m            and ([m
+[32m+[m[32m                v.tipo_dia = "Dia Útil"[m
+[32m+[m[32m                and (viagens_planejadas is null or pof is null or rn is null)[m
+[32m+[m[32m            )[m
+[32m+[m[32m        then null[m
+[32m+[m[32m        else true[m
+[32m+[m[32m    end as indicador_viagem_dentro_limite,[m
+[32m+[m[32m    '{{ var("version") }}' as versao,[m
+[32m+[m[32m    current_datetime("America/Sao_Paulo") as datetime_ultima_atualizacao[m
+[32m+[m[32mfrom[m
+[32m+[m[32m    ([m
+[32m+[m[32m        select[m
+[32m+[m[32m            v.*,[m
+[32m+[m[32m            p.* except (data, servico),[m
+[32m+[m[32m            row_number() over ([m
+[32m+[m[32m                partition by v.data, v.servico, faixa_horaria_inicio, faixa_horaria_fim[m
+[32m+[m[32m                order by subsidio_km * distancia_planejada desc, datetime_partida asc[m
+[32m+[m[32m            ) as rn,[m
+[32m+[m[32m            row_number() over ([m
+[32m+[m[32m                partition by v.data, v.servico, faixa_horaria_inicio, faixa_horaria_fim[m
+[32m+[m[32m                order by subsidio_km * distancia_planejada, datetime_partida[m
+[32m+[m[32m            ) as rn_pos_v15[m
+[32m+[m[32m        from viagem_km_tipo as v[m
+[32m+[m[32m        left join[m
+[32m+[m[32m            viagem_planejada as p[m
+[32m+[m[32m            on p.data = v.data[m
+[32m+[m[32m            and p.servico = v.servico[m
+[32m+[m[32m            and v.datetime_partida[m
+[32m+[m[32m            between p.faixa_horaria_inicio and p.faixa_horaria_fim[m
+[32m+[m[32m    ) as v[m
+[32m+[m[32mleft join[m
+[32m+[m[32m    servico_faixa_km_apuracao as s[m
+[32m+[m[32m    on s.data = v.data[m
+[32m+[m[32m    and s.servico = v.servico[m
+[32m+[m[32m    and v.datetime_partida between s.faixa_horaria_inicio and s.faixa_horaria_fim[m
