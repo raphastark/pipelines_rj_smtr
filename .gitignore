@@ -10,6 +10,13 @@ test/*.ipynb
 test/*.csv
 setup.py
 .vscode/*
+
+# Windows sync files (Google Drive, OneDrive, etc.)
+desktop.ini
+*.tmp
+~$*
+.DS_Store
+Thumbs.db
 *.hdf
 
 
