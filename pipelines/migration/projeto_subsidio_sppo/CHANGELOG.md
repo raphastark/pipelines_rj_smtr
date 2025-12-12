@@ -1,5 +1,34 @@
 # Changelog - projeto_subsidio_sppo
 
+## [1.3.6] - 2025-12-10
+
+### Alterado
+
+- Adiciona o teste `sincronizacao_tabelas__transacao_gratuidade_estudante_municipal` ao exclude do pré teste do subsídio (https://github.com/prefeitura-rio/pipelines_rj_smtr/pull/1101)
+
+## [1.3.5] - 2025-10-24
+
+### Adicionado
+
+- Adiciona horário no `dbt_vars` (https://github.com/prefeitura-rio/pipelines_rj_smtr/pull/990)
+- Adiciona descrição do teste `test_check_tecnologia_minima__viagem_classificada` (https://github.com/prefeitura-rio/pipelines_rj_smtr/pull/990)
+
+### Removido
+
+- Remove o pre teste `not_null__data_ordem__transacao` (https://github.com/prefeitura-rio/pipelines_rj_smtr/pull/990)
+
+## [1.3.4] - 2025-10-20
+
+### Adicionado
+
+- Adiciona testes dos indicadores do modelo `viagem_regularidade_temperatura` no discord (https://github.com/prefeitura-rio/pipelines_rj_smtr/pull/962)
+
+## [1.3.3] - 2025-10-14
+
+### Adicionado
+
+- Adiciona testes dos indicadores do modelo `viagem_regularidade_temperatura` (https://github.com/prefeitura-rio/pipelines_rj_smtr/pull/928)
+
 ## [1.3.2] - 2025-09-23
 
 ### Alterado
