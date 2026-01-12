@@ -37,7 +37,7 @@ class constants(Enum):  # pylint: disable=c0103
     STU_VEICULO_ATIVO_TABLE_ID = "veiculo_ativo"
     STU_VISTORIA_TABLE_ID = "vistoria"
     STU_GUIA_TABLE_ID = "guia"
-    STU_PERMIS_EMPRESA_ESCOLA_TABLE_ID = "permissao_empresa_escola"
+    STU_PERMIS_EMPRESA_ESCOLA_TABLE_ID = "permis_empresa_escola"
     STU_MODELO_TABLE_ID = "modelo"
 
     STU_TABLE_CAPTURE_PARAMS = {
@@ -120,7 +120,6 @@ class constants(Enum):  # pylint: disable=c0103
             pretreat_funcs=v.get("pretreat_funcs"),
             bucket_names=STU_PRIVATE_BUCKET_NAMES,
             partition_date_only=True,
-            max_recaptures=v.get("max_recaptures", 2),
             raw_filetype=v.get("raw_filetype", "csv"),
         )
         for k, v in STU_TABLE_CAPTURE_PARAMS.items()
