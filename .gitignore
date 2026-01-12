@@ -159,3 +159,20 @@ dmypy.json
 # AI agent contexts
 GEMINI.md# Documentação sensível de auditoria - apenas local
 ANALISE_JURIDICA_PESSOAL.md
+
+# Documentação jurídica confidencial - APENAS LOCAL
+ANALISE_JURIDICA_*.md
+
+# Documentação de auditoria confidencial - APENAS LOCAL
+RELATORIO_SEMANAL_*.md
+ANALISE_JURIDICA_*.md
+.historico_kilocode/
+
+# Manter CLAUDE.md no GitHub (guia geral, neutro)
+# Mas esconder relatórios semanais e análises jurídicas
+
+# Documentos jurídicos confidenciais - APENAS LOCAL
+*.docx
+*.doc
+decisao_tutela_*.txt
+evento_112_*.txt
