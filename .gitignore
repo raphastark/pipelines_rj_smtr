@@ -157,4 +157,5 @@ dmypy.json
 .vscode/
 
 # AI agent contexts
-GEMINI.md
+GEMINI.md# Documentação sensível de auditoria - apenas local
+ANALISE_JURIDICA_PESSOAL.md
