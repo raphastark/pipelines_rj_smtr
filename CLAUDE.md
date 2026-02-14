@@ -10,11 +10,160 @@ Este documento serve como base de conhecimento centralizada para a auditoria e m
 
 **Data da Análise Inicial:** 28 de Novembro de 2025
 
-**Estado do Repositório (após atualização):** Commit `2d89e11b2` (upstream/main) - **ÚLTIMA ATUALIZAÇÃO: 12/01/2026**
+**Estado do Repositório (após atualização):** Commit `56971229e` (upstream/main) - **ÚLTIMA ATUALIZAÇÃO: 14/02/2026**
 
 ---
 
-## ⚠️⚠️⚠️ ALERTA CRÍTICO - JANEIRO 2026 ⚠️⚠️⚠️
+## ⚠️⚠️⚠️ ALERTA CRÍTICO - FEVEREIRO 2026 ⚠️⚠️⚠️
+
+### AUMENTO DE TARIFA CONFIRMADO 💰
+
+**PR:** #1162 (mergeado em 13/01/2026)
+**Data de Vigência:** 04/01/2026
+**Impacto:** **ALTO**
+
+- Tarifa pública aumentou de **R$ 4,70 para R$ 5,00**
+- Aumento de **6,38%** no valor da tarifa
+- Base Legal: **DECRETO RIO Nº 57473 DE 29 DE DEZEMBRO DE 2025**
+- Nova tabela [`tarifa_publica.sql`](queries/models/planejamento/tarifa_publica.sql) criada para histórico de tarifas
+
+**Histórico de Tarifas (novo modelo):**
+| Período | Valor | Base Legal |
+|---------|-------|------------|
+| 07/01/2023 - 04/01/2025 | R$ 4,30 | DECRETO RIO Nº 51914/2023 |
+| 05/01/2025 - 03/01/2026 | R$ 4,70 | DECRETO RIO Nº 55631/2025 |
+| 04/01/2026 - atual | R$ 5,00 | DECRETO RIO Nº 57473/2025 |
+
+---
+
+### EXTENSÃO DO PRAZO DE VISTORIA 🔧
+
+**PR:** #1183 (mergeado em 23/01/2026)
+**Data:** 23/01/2026
+**Impacto:** **MÉDIO**
+
+- **Resolução SMTR Nº 3894** altera prazo final de vistoria para **31 de janeiro de 2026**
+- Veículos com vistoria realizada até 2 anos antes são considerados vistoriados em janeiro/2026
+- Modificação no modelo [`veiculo_dia.sql`](queries/models/monitoramento/veiculo_dia.sql)
+
+**Trecho do código:**
+```sql
+when date(data) between ('2026-01-01') and ('2026-01-31')
+and ano_ultima_vistoria >= extract(year from date(data)) - 2
+then true  -- RESOLUÇÃO SMTR Nº 3894
+```
+
+---
+
+### EXCEÇÕES DE LIMITE DE VIAGENS - JANEIRO 2026 🚌
+
+**PR:** #1195 (mergeado em 27/01/2026)
+**Processo:** n° 000300.001720/2026-55
+**Impacto:** **ALTO**
+
+Adicionada exceção no limite de viagens para serviços específicos entre **01-15 de janeiro de 2026**:
+
+**Serviços com exceção:**
+`104, 107, 109, 161, 167, 169, 409, 410, 435, 473, 583, 584, LECD127, LECD128, 552, SP805, 361, LECD129, 232`
+
+**Efeito:** Viagens acima do limite nestes serviços não são glosadas durante o período.
+
+---
+
+### PLANO VERÃO 2026 - NOVAS DATAS ☀️
+
+**PR:** #1203 (mergeado em 02/02/2026)
+**Impacto:** **MÉDIO**
+
+Novas datas adicionadas ao "Plano Verão":
+- **17-18 de janeiro de 2026** (Processo: 000399.000456/2026-91)
+- **31 de janeiro - 01 de fevereiro de 2026** (Processo: 000399.001025/2026-41)
+
+**Efeito:** Nestas datas, o tipo de OS é "Verão" com regras operacionais diferenciadas.
+
+---
+
+### PONTO FACULTATIVO 26/01/2026 - LECD126 📅
+
+**PR:** #1217 (mergeado em 09/02/2026)
+**Impacto:** **BAIXO**
+
+- Serviço **LECD126** no dia 26/01/2026 (ponto facultativo) tratado como **sábado**
+- Modificação em [`ordem_servico_trips_shapes_gtfs_v2.sql`](queries/models/gtfs/staging/ordem_servico_trips_shapes_gtfs_v2.sql)
+
+---
+
+### REMOÇÃO DO ACRÉSCIMO DE 4% - RIOCARD 💳
+
+**PR:** #1185 (mergeado em 26/01/2026)
+**Impacto:** **ALTO**
+
+- **REMOVIDO** o acréscimo de 4% nas transações RioCard
+- Anteriormente: `valor_pagamento / 0.96` (acréscimo de ~4,17%)
+- Agora: `valor_pagamento` direto, sem acréscimo
+- Afeta modelo [`aux_passageiro_hora.sql`](queries/models/bilhetagem/staging/aux_passageiro_hora.sql)
+
+**Impacto financeiro:** Redução de ~4% nos valores de transações RioCard reportados.
+
+---
+
+### NOVO MODELO: `validador_operadora` 📋
+
+**PR:** #1181 (mergeado em 10/02/2026)
+**Impacto:** **MÉDIO**
+
+- Nova view [`validador_operadora.sql`](queries/models/cadastro/validador_operadora.sql)
+- Atualização de [`view_viagem_climatizacao.sql`](queries/models/dashboard_monitoramento_interno/view_viagem_climatizacao.sql)
+- Objetivo: Rastrear qual operadora está associada a cada validador
+
+---
+
+### MODELO `viagem_transacao` - INCLUSÃO DE VIAGENS DO DIA ANTERIOR 🔄
+
+**PR:** #1108 (mergeado em 15/01/2026)
+**Impacto:** **ALTO**
+
+- Ajuste para incluir viagens do dia anterior fora do ambiente de produção
+- Modificação em [`viagem_transacao_aux_v2.sql`](queries/models/subsidio/staging/viagem_transacao_aux_v2.sql)
+- Permite que viagens iniciadas em um dia e terminadas no seguinte sejam contabilizadas
+
+---
+
+### CORREÇÕES DE TEMPERATURA E TESTES 🌡️
+
+**PRs:** #1176 (19/01/2026) e #1189 (30/01/2026)
+**Impacto:** **MÉDIO**
+
+- Correção no modelo [`temperatura.sql`](queries/models/monitoramento/temperatura.sql)
+- Ajuste no teste `test_completude_temperatura.sql` para **remover o dia posterior** do cálculo
+- Impacta validação de climatização para fins de glosa
+
+---
+
+### DESATIVAÇÃO DE SCHEDULES 📴
+
+**PRs:** #1211 (05/02/2026) e #1219 (10/02/2026)
+**Impacto:** **BAIXO**
+
+- Removido schedule do flow `CAPTURA_GPS_VALIDADOR`
+- Removido schedule do flow de materialização da `gps_validador`
+- Tabelas continuam existindo mas não são mais atualizadas automaticamente
+
+---
+
+### BACKUP BILLINGPAY - TABELAS EXCLUÍDAS 💾
+
+**PR:** #1241 (mergeado em 11/02/2026)
+**Impacto:** **BAIXO (operacional)**
+
+Tabelas adicionadas ao exclude do backup:
+- `transacao_erro`
+- `temp_cancelamento_estudante_08122025`
+- `temp_cancelamento_estudante_sme_08122025`
+
+---
+
+## ALERTAS ANTERIORES (JANEIRO 2026)
 
 ### FIM DA SUSPENSÃO V22 - REVERSÃO TOTAL
 
@@ -32,20 +181,6 @@ A versão V22 foi **COMPLETAMENTE REMOVIDA** do código:
 A "suspensão das glosas" durou menos de 3 meses e foi revertida. O período que estava isento (16/10 a 15/11/2025) agora volta a ser auditado e pode sofrer penalizações.
 
 **Padrão Confirmado:** Implementação → "Concessão Temporária" → Reversão Total
-
----
-
-### AUMENTO DE TARIFA DE INTEGRAÇÃO 💰
-
-**Branch:** `staging/alteracao-tarifa-20260104`
-**Data:** 04/01/2026
-**Impacto:** **ALTO**
-
-- Valor de integração aumentou de **R$ 4,70 para R$ 5,00**
-- Aumento de **6,38%** na tarifa paga por integração
-- Afeta diretamente o cálculo de subsídios
-
-**Status:** Em staging (ainda não mergeado no main)
 
 ---
 
@@ -521,7 +656,133 @@ Com base no padrão histórico, projetamos:
 
 ---
 
-## 7. Glossário de Termos
+## 10. Análise de Impacto - Atualização Fevereiro 2026
+
+### 10.1 Resumo de Impacto Financeiro
+
+| Mudança | Direção | Magnitude | Período Afetado |
+|---------|---------|-----------|-----------------|
+| Aumento tarifa (R$ 5,00) | ↑ Favorável empresas | ~6,4% | A partir de 04/01/2026 |
+| Extensão prazo vistoria | ↑ Favorável empresas | Médio | Janeiro/2026 |
+| Exceções limite viagens | ↑ Favorável empresas | Alto (19 serviços) | 01-15/01/2026 |
+| Remoção acréscimo 4% RioCard | ↓ Desfavorável empresas | ~4% redução | Permanente |
+| Plano Verão (novas datas) | ↔ Neutro | Operacional | Janeiro-Fevereiro/2026 |
+
+### 10.2 Análise Detalhada por Mudança
+
+#### A. Aumento de Tarifa (PR #1162)
+
+**Contexto:**
+A tarifa pública foi aumentada de R$ 4,70 para R$ 5,00 via Decreto Rio Nº 57473/2025. Foi criada uma nova tabela `tarifa_publica.sql` que mantém o histórico de tarifas desde 2023.
+
+**Impacto no Subsídio:**
+- Aumento de 6,38% no valor da tarifa
+- Afeta diretamente o cálculo de integrações e matriz de repartição tarifária
+- Modelo `matriz_integracao.sql` foi atualizado para usar a nova tabela
+
+**Risco:** Baixo. Mudança normativa esperada e documentada.
+
+---
+
+#### B. Extensão do Prazo de Vistoria (PR #1183)
+
+**Contexto:**
+A Resolução SMTR Nº 3894 estendeu o prazo de vistoria até 31/01/2026, permitindo que veículos com vistoria de até 2 anos sejam considerados regulares durante janeiro/2026.
+
+**Impacto no Subsídio:**
+- Veículos que seriam glosados por "não vistoriados" em janeiro/2026 passam a ser considerados regulares
+- Redução temporária de glosas por vistoria
+
+**Risco:** Médio. Extensão temporária que pode não ser renovada em fevereiro.
+
+---
+
+#### C. Exceções de Limite de Viagens (PR #1195)
+
+**Contexto:**
+Processo administrativo n° 000300.001720/2026-55 determina que 19 serviços específicos tenham exceção no limite de viagens entre 01-15 de janeiro de 2026.
+
+**Serviços Beneficiados:**
+```
+104, 107, 109, 161, 167, 169, 409, 410, 435, 473, 
+583, 584, LECD127, LECD128, 552, SP805, 361, LECD129, 232
+```
+
+**Impacto no Subsídio:**
+- Viagens acima do limite nestes serviços não são glosadas
+- Aumento de remuneração para estes serviços específicos
+
+**Risco:** Alto. Cria precedente para exceções pontuais por processo administrativo.
+
+---
+
+#### D. Remoção do Acréscimo de 4% RioCard (PR #1185)
+
+**Contexto:**
+Anteriormente, transações RioCard recebiam um acréscimo de 4% no valor de pagamento (`valor_pagamento / 0.96`). Este acréscimo foi removido.
+
+**Código Anterior:**
+```sql
+) / 0.96 as valor_pagamento,  -- acréscimo de ~4,17%
+```
+
+**Código Atual:**
+```sql
+) as valor_pagamento,  -- sem acréscimo
+```
+
+**Impacto no Subsídio:**
+- Redução de aproximadamente 4% nos valores de transações RioCard
+- Afeta o modelo `aux_passageiro_hora.sql`
+- Pode impactar cálculos de passageiros transportados
+
+**Risco:** Alto. Mudança que reduz valores reportados, sem clara justificativa normativa.
+
+---
+
+#### E. Plano Verão - Novas Datas (PR #1203)
+
+**Contexto:**
+O "Plano Verão" teve novas datas adicionadas:
+- 17-18/01/2026 (Processo: 000399.000456/2026-91)
+- 31/01-01/02/2026 (Processo: 000399.001025/2026-41)
+
+**Impacto no Subsídio:**
+- Nestas datas, o tipo_os = "Verão" com regras operacionais diferenciadas
+- Pode afetar ordens de serviço e planejamento de viagens
+
+**Risco:** Baixo. Mudança operacional esperada para período de verão.
+
+---
+
+### 10.3 Padrões Identificados
+
+#### Padrão de "Exceções Pontuais"
+
+Observa-se um padrão de criação de exceções pontuais via processos administrativos:
+1. **Processo 000300.001720/2026-55:** Exceção limite viagens
+2. **Processo 000399.000456/2026-91:** Plano Verão 17-18/01
+3. **Processo 000399.001025/2026-41:** Plano Verão 31/01-01/02
+
+Isso sugere uma estratégia de flexibilização pontual sem alterar regras permanentes.
+
+#### Padrão de "Correções Silenciosas"
+
+A remoção do acréscimo de 4% nas transações RioCard foi feita sem grande alarde, mas representa uma redução significativa nos valores reportados.
+
+---
+
+### 10.4 Recomendações
+
+1. **Monitorar** se a extensão de prazo de vistoria será renovada para fevereiro/2026
+2. **Documentar** os processos administrativos que geram exceções
+3. **Investigar** a justificativa para remoção do acréscimo de 4% RioCard
+4. **Acompanhar** se novas datas de Verão serão adicionadas
+5. **Verificar** impacto financeiro real da remoção do acréscimo 4%
+
+---
+
+## 11. Glossário de Termos
 
 - **SPPO:** Serviço Público de Transporte de Passageiros por Ônibus
 - **SMTR:** Secretaria Municipal de Transportes
@@ -586,6 +847,19 @@ Com base no padrão histórico, projetamos:
 |  | • Operação Lago Limpo: modelos deprecated desabilitados |
 |  | • Integração com AlertaRio para dados de temperatura |
 |  | • Novos testes de qualidade e validação |
+| 2026-01-12 | **ATUALIZAÇÃO: 28 commits do upstream** - Reversão da V22 |
+|  | • **CRÍTICO: V22 REVERTIDA** - Glosas por climatização reativadas |
+|  | • Aumento de tarifa de integração (R$ 4,70 → R$ 5,00) |
+| 2026-02-14 | **ATUALIZAÇÃO: 28 novos commits do upstream** (commit `56971229e`) |
+|  | • **AUMENTO DE TARIFA CONFIRMADO:** R$ 5,00 a partir de 04/01/2026 |
+|  | • **Extensão prazo vistoria:** Até 31/01/2026 (Resolução SMTR 3894) |
+|  | • **Exceções limite viagens:** 19 serviços em janeiro/2026 |
+|  | • **Plano Verão:** Novas datas 17-18/01 e 31/01-01/02/2026 |
+|  | • **Remoção acréscimo 4% RioCard:** Impacto em transações |
+|  | • Novo modelo `validador_operadora` para rastreamento |
+|  | • Ajustes em `viagem_transacao` para viagens do dia anterior |
+|  | • Correções em testes de temperatura |
+|  | • Desativação de schedules GPS validador |
 
 ---
 
