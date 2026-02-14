@@ -2,7 +2,7 @@
 """
 Flows de tratamento dos dados de monitoramento
 
-DBT: 2026-01-06
+DBT 2026-02-02
 """
 
 from copy import deepcopy
@@ -194,6 +194,7 @@ GPS_VALIDADOR_MATERIALIZACAO = create_default_materialization_flow(
     test_webhook_key=jae_constants.ALERT_WEBHOOK.value,
     test_scheduled_time=time(1, 15, 0),
     skip_if_running_tolerance=10,
+    generate_schedule=False,
 )
 
 GPS_VALIDADOR_MATERIALIZACAO.state_handlers.append(
