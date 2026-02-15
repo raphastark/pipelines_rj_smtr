@@ -656,7 +656,215 @@ Com base no padrão histórico, projetamos:
 
 ---
 
-## 10. Análise de Impacto - Atualização Fevereiro 2026
+## 10. Matriz de Integração Tarifária - Bilhete Único
+
+### 10.1 Visão Geral do Sistema
+
+O sistema de **Bilhete Único** do Rio de Janeiro permite que passageiros realizem múltiplas viagens pagando uma única tarifa. O cálculo de integrações é feito através de um pipeline complexo que envolve modelos SQL e um script PySpark.
+
+### 10.2 Fluxo de Dados da Integração
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PIPELINE DE INTEGRAÇÃO TARIFÁRIA                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────┐
+│  SOURCE: SMTR        │
+│  (Dados Brutos)      │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  MODELO: tarifa_publica.sql (NOVO - PR #1162)                               │
+│  ─────────────────────────────────────────────────                           │
+│  • Define valor da tarifa pública por período                               │
+│  • Histórico: R$ 4,30 (2023) → R$ 4,70 (2025) → R$ 5,00 (2026)              │
+│  • Usado como base para valor_integracao                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+           │
+           ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  MODELO: matriz_reparticao_tarifaria.sql                                    │
+│  ─────────────────────────────────────────────                               │
+│  • Define a sequência de modos permitidos (ex: Ônibus-Ônibus, Ônibus-Metrô) │
+│  • Define percentuais de rateio por perna (ex: 50%-50%, 60%-40%)            │
+│  • Define tempo máximo de integração em minutos                             │
+│  • Source: source_smtr.matriz_reparticao_tarifaria                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+           │
+           ├──────────────────────────────────────────────┐
+           │                                              │
+           ▼                                              ▼
+┌─────────────────────────────────┐    ┌─────────────────────────────────────┐
+│ aux_matriz_integracao_modo.sql  │    │  aux_matriz_transferencia.sql       │
+│ ─────────────────────────────── │    │  ─────────────────────────────────  │
+│ • Integrações entre modos       │    │  • Transferências específicas       │
+│ • Ex: Ônibus → Ônibus           │    │  • Serviços específicos origem/dest │
+│ • Usa tarifa_publica para valor │    │  • Usa tarifa_publica para valor    │
+└─────────────────────────────────┘    └─────────────────────────────────────┘
+           │                                              │
+           └──────────────────────┬───────────────────────┘
+                                  │
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  MODELO: matriz_integracao.sql (CENTRAL)                                     │
+│  ─────────────────────────────────────                                        │
+│  • Une: integrações regulares + transferências + exceções                    │
+│  • Fontes:                                                                   │
+│    - aux_matriz_integracao_modo (integrações por modo)                      │
+│    - aux_matriz_transferencia (transferências específicas)                   │
+│    - source_smtr.matriz_integracao_excecao (exceções manuais)                │
+│  • Output: Tabela particionada por data_inicio                               │
+│  • Colunas principais:                                                       │
+│    - modo_origem, modo_destino                                              │
+│    - id_servico_jae_origem, id_servico_jae_destino                          │
+│    - tempo_integracao_minutos                                               │
+│    - valor_integracao (R$ 5,00 atual)                                       │
+│    - tipo_integracao: "Integração" ou "Transferência"                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  MODELO: aux_transacao_filtro_integracao_calculada.sql                       │
+│  ─────────────────────────────────────────────────────────                   │
+│  • Prepara transações para cálculo de integração                            │
+│  • Join com tarifa_publica para obter valor_tarifa                          │
+│  • Classifica modo_join (SPPO, BRT, BRT ESP, Van, Ônibus)                   │
+│  • Filtra: tipo_transacao != 'Gratuidade' e tipo_transacao_jae != 'Botoeira'│
+└──────────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  SCRIPT PySpark: aux_calculo_integracao.py                                   │
+│  ────────────────────────────────────────────                                │
+│  • Lógica principal de cálculo de integração                                │
+│  • Processa transações agrupadas por cliente_cartao                          │
+│  • Itera sobre transações ordenadas por datetime_transacao                  │
+│                                                                              │
+│  ALGORITMO:                                                                  │
+│  1. Para cada cliente, ordena transações por horário                        │
+│  2. Primeira transação = "Primeira perna"                                   │
+│  3. Para transações subsequentes:                                           │
+│     a. Verifica se é TRANSFERÊNCIA (serviço diferente, dentro do tempo)     │
+│     b. Verifica se é INTEGRAÇÃO (modo compatível, dentro do tempo)          │
+│     c. Se não for integração → nova "Primeira perna"                        │
+│  4. Calcula tempo entre transações vs. tempo_integracao_minutos             │
+│  5. Consulta matriz_integracao para validar regras                          │
+│                                                                              │
+│  OUTPUT:                                                                     │
+│  • id_integracao: ID da primeira transação do grupo                         │
+│  • sequencia_integracao: 1, 2, 3...                                         │
+│  • tipo_integracao: "Primeira perna", "Integração", "Transferência"         │
+│  • datetime_inicio_integracao: horário da primeira perna                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  MODELOS FINAIS                                                              │
+│  ─────────────────                                                           │
+│  • integracao_invalida.sql: Transações que falharam na integração           │
+│  • Usado para validação e monitoramento                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 10.3 Componentes Principais
+
+#### A. Tabela de Tarifas (`tarifa_publica.sql`)
+
+**Criada no PR #1162 (13/01/2026)**
+
+```sql
+-- Histórico de tarifas
+| data_inicio | data_fim    | valor_tarifa | legislacao                    |
+|-------------|-------------|--------------|-------------------------------|
+| 2023-01-07  | 2025-01-04  | R$ 4,30      | DECRETO RIO Nº 51914/2023     |
+| 2025-01-05  | 2026-01-03  | R$ 4,70      | DECRETO RIO Nº 55631/2025     |
+| 2026-01-04  | (atual)     | R$ 5,00      | DECRETO RIO Nº 57473/2025     |
+```
+
+#### B. Matriz de Repartição Tarifária
+
+Define como o valor da integração é dividido entre as empresas:
+
+| Integração | Sequência de Modos | Rateio |
+|------------|-------------------|--------|
+| Ônibus-Ônibus | [Ônibus, Ônibus] | [50%, 50%] |
+| Ônibus-Ônibus-Ônibus | [Ônibus, Ônibus, Ônibus] | [33%, 33%, 34%] |
+| Ônibus-BRT | [Ônibus, BRT] | [50%, 50%] |
+
+#### C. Regras de Integração
+
+**Tipos de Integração:**
+
+1. **Integração** (`tipo_integracao = "Integração"`)
+   - Entre modos diferentes (Ônibus → BRT, Ônibus → Van)
+   - Dentro do tempo máximo definido
+   - Valor: R$ 5,00 (tarifa única)
+
+2. **Transferência** (`tipo_integracao = "Transferência"`)
+   - Entre serviços específicos
+   - Serviço de origem ≠ Serviço de destino
+   - Regras específicas por serviço
+
+3. **Exceções** (`source_smtr.matriz_integracao_excecao`)
+   - Casos especiais definidos manualmente
+   - Podem sobrescrever regras gerais
+
+### 10.4 Tempo de Integração
+
+O tempo máximo para integração é definido em `tempo_integracao_minutos` na matriz. O script PySpark calcula:
+
+```python
+tempo_integracao = (
+    datetime.fromisoformat(datetime_transacao)
+    - datetime.fromisoformat(datetime_inicio_integracao)
+).total_seconds() / 60
+```
+
+Se `tempo_integracao <= tempo_integracao_minutos`, a integração é válida.
+
+### 10.5 Classificação de Modos
+
+O campo `modo_join` é usado para matching na matriz:
+
+```sql
+case
+    when modo = 'Van' then consorcio
+    when modo = 'Ônibus' and not (serviço especial) then 'SPPO'
+    when modo = 'BRT' and tarifa > tarifa_publica then 'BRT ESP'
+    else modo
+end as modo_join
+```
+
+### 10.6 Impacto da Atualização de Tarifa
+
+Com o aumento para R$ 5,00 (PR #1162):
+
+1. **Valor da integração** passou de R$ 4,70 para R$ 5,00
+2. A tabela `tarifa_publica` é consultada via JOIN em:
+   - `aux_matriz_integracao_modo.sql`
+   - `aux_matriz_transferencia.sql`
+   - `aux_transacao_filtro_integracao_calculada.sql`
+3. O valor é automaticamente propagado para `valor_integracao` na matriz
+
+### 10.7 Fluxo de Execução
+
+```
+1. transacao.sql (dados brutos de transações)
+        ↓
+2. aux_transacao_filtro_integracao_calculada.sql (prepara dados)
+        ↓
+3. aux_calculo_integracao.py (PySpark - cálculo iterativo)
+        ↓
+4. aux_integracao_calculada.sql (consolida resultados)
+        ↓
+5. integracao_invalida.sql (validação)
+```
+
+---
+
+## 11. Análise de Impacto - Atualização Fevereiro 2026
 
 ### 10.1 Resumo de Impacto Financeiro
 
@@ -782,7 +990,7 @@ A remoção do acréscimo de 4% nas transações RioCard foi feita sem grande al
 
 ---
 
-## 11. Glossário de Termos
+## 12. Glossário de Termos
 
 - **SPPO:** Serviço Público de Transporte de Passageiros por Ônibus
 - **SMTR:** Secretaria Municipal de Transportes
