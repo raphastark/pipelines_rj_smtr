@@ -537,91 +537,28 @@ Localização: `queries/macros/`
 
 ---
 
-## 6. PADRÃO DE REVERSÃO - "CONCESSÕES TEMPORÁRIAS" ⚠️
+## 6. Análise de Versões e Reversões
 
-### 6.1 O Padrão Comportamental da Prefeitura (CONFIRMADO)
+> **Nota:** Análises jurídicas detalhadas sobre padrões de reversão da SMTR estão disponíveis localmente no arquivo `ANALISE_JURIDICA_SMTR.md` (não versionado no GitHub).
 
-A análise histórica de 2023-2026 revela um **padrão consistente e documentável**:
+### 6.1 Histórico de Versões do Subsídio
 
-```
-FASE 1: IMPLEMENTAR RESTRIÇÃO
-   ↓ (pressão judicial das operadoras)
-FASE 2: "CONCESSÃO TEMPORÁRIA" (V22, V15, etc.)
-   ↓ (período de 1-3 meses)
-FASE 3: REVERSÃO TOTAL OU RESTRIÇÕES AINDA MAIS SEVERAS
-   ↓ (novo ciclo)
-```
+O sistema evoluiu através de múltiplas versões, algumas com características temporárias:
 
-### 6.2 Histórico de "Concessões" Revertidas
+| Versão | Data Início | Característica | Status |
+|--------|-------------|----------------|--------|
+| **V22** | 16/10/2025 | Suspensão temporária glosas climatização | **REVERTIDA** 29/12/2025 |
+| **V21** | 01/10/2025 | Mudanças em validadores | Ativa |
+| **V20** | 16/08/2025 | Inciso IV Climatização | Ativa |
+| **V19** | 01/11/2025 | Não pagamento sem ar condicionado | Ativa |
+| **V17** | 16/07/2025 | Regularidade de temperatura | Ativa |
+| **V15** | 01/04/2025 | Acordo judicial | Substituída |
 
-| Concessão | Data Início | Duração | Destino | Restrição Seguinte |
-|-----------|-------------|---------|---------|-------------------|
-| **V22** (suspensão climatização) | 16/10/2025 | **30 dias** | ✅ REVERTIDA (29/12/2025) | Glosas retroativas OUT/NOV |
-| **V15** (acordo judicial) | 01/04/2025 | **3 meses** | ✅ SUBSTITUÍDA (01/07/2025) | V17: 14 faixas horárias |
-| **V14** (diferenciação tipo) | 05/01/2025 | **3 meses** | ✅ SUBSTITUÍDA (01/04/2025) | V15: Acordo seguido de V17 |
+### 6.2 Lições Aprendidas
 
-### 6.3 Análise da V22 - Caso Paradigmático
-
-**Timeline Completa:**
-
-| Data | Evento | Versão | Status |
-|------|--------|--------|--------|
-| 16/07/2025 | V17 implementada | V17 | Glosas por temperatura ATIVAS |
-| 16/10/2025 | "Suspensão" V22 | V22 | Glosas SUPENAS (aparente vitória) |
-| 15/11/2025 | Fim do período de suspensão | - | Período encerrado |
-| 09/12/2025 | Commit remove V22 | - | Preparação para reversão |
-| 29/12/2025 | Commit `5e39e7367` | - | **V22 REMOVIDA do código** |
-| 09/01/2026 | Merge upstream/main | - | Reversão CONFIRMADA |
-
-**O que aconteceu na prática:**
-
-1. **16/10 a 15/11/2025 (30 dias):** Período "suspenso"
-   - Viagens não foram glosadas por ar-condicionado
-   - Mas o código continha um filtro temporário
-
-2. **29/12/2025:** Reversão técnica
-   - Variável `DATA_SUBSIDIO_V22_INICIO` removida
-   - Filtro de período ELIMINADO
-   - Sistema volta a aplicar glosas normalmente
-
-3. **Resultado:** Viagens de OUT/NOV 2025 voltam a ser auditadas
-   - **Reprocessamento retroativo confirmado**
-   - Empresas podem receber penalizações por viagens que estavam "isentas"
-
-### 6.4 Implicações Jurídicas
-
-**Argumento Documentável:**
-
-A Prefeitura tem utilizado o seguinte modus operandi:
-1. Implementar restrições unilateralmente
-2. Quando questionada judicialmente, fazer "concessões temporárias"
-3. Após curto período (1-3 meses), REVERTER a concessão
-4. Frequentemente substituir com restrições ainda mais severas
-
-**Isso caracteriza:**
-- Má-fé processual
-- Violação da segurança jurídica
-- Impossibilidade de planejamento pelas operadoras
-- Uso de "concessões" como medida meramente temporária/tática
-
-### 6.5 Previsões para 2026
-
-Com base no padrão histórico, projetamos:
-
-**Janeiro-Março 2026:**
-- ✅ Aumento de tarifa de integração (CONFIRMADO)
-- ⚠️ Possível ativação da V99
-- ⚠️ Novas restrições ambientais (Euro VI)
-
-**Abril-Junho 2026:**
-- ⚠️ Alta probabilidade de nova "negociação"
-- ⚠️ Seguida de restrições mais severas
-- ⚠️ Possível V23 ou ativação de V99
-
-**Estratégia Recomendada:**
-- NÃO aceitar concessões temporárias
-- Exigir mudanças PERMANENTES em acordo judicial
-- Documentar padrão de reversão para uso em litígios
+- Algumas versões são implementadas como "temporárias" e depois revertidas
+- É importante documentar todas as versões para rastreabilidade
+- Mudanças temporárias podem ter impacto retroativo
 
 ---
 
